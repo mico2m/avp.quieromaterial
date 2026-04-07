@@ -244,7 +244,7 @@ canvas{display:block;cursor:crosshair;touch-action:none;width:100%;height:auto}
       <div><span class="cname">Gastón</span><span class="cnum">+54 9 11 5751-9199</span></div>
     </button>
     <button class="cbtn" onclick="sendTo('+5491157664802','Mirco')">
-      <div class="cico"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div>
+      <div class="cico"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.570-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div>
       <div><span class="cname">Mirco</span><span class="cnum">+54 9 11 5766-4802</span></div>
     </button>
     <button class="mcancel" onclick="closeModal()">Cancelar</button>
@@ -585,6 +585,70 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 function handleBg(e){if(e.target===document.getElementById('modal'))closeModal();}
 
 let currentRegistro = null; // {fileId, url}
+let registroPromise = null;
+
+function ensureRegistroIframe(){
+  let f = document.getElementById('reg-iframe');
+  if(f) return f;
+  f = document.createElement('iframe');
+  f.id = 'reg-iframe';
+  f.name = 'reg-iframe';
+  f.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:0;visibility:hidden';
+  document.body.appendChild(f);
+  return f;
+}
+
+function postRegistroViaForm(payload){
+  // Fallback CORS-safe para GitHub Pages: POST por formulario + postMessage desde Apps Script.
+  ensureRegistroIframe();
+  if(registroPromise) return registroPromise;
+
+  registroPromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timeout registrando en Sheets.'));
+    }, 45000);
+
+    function cleanup(){
+      clearTimeout(timeout);
+      window.removeEventListener('message', onMsg);
+      registroPromise = null;
+      if(form && form.parentNode) form.parentNode.removeChild(form);
+    }
+
+    function onMsg(ev){
+      // Aceptar solo mensajes con la forma esperada
+      const d = ev && ev.data;
+      if(!d || d.type !== 'AVP_REGISTRO_RESULT') return;
+      cleanup();
+      if(d.ok){
+        currentRegistro = { fileId: d.fileId, url: d.url };
+        resolve(currentRegistro);
+      }else{
+        reject(new Error(d.error || 'No se pudo registrar.'));
+      }
+    }
+
+    window.addEventListener('message', onMsg);
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = USUARIOS_API_URL;
+    form.target = 'reg-iframe';
+    form.enctype = 'application/x-www-form-urlencoded';
+
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'payload';
+    inp.value = JSON.stringify(payload);
+    form.appendChild(inp);
+
+    document.body.appendChild(form);
+    form.submit();
+  });
+
+  return registroPromise;
+}
 
 async function registrarEnSheets({ filename, blob }){
   // Para registrar (POST) necesitás abrir esta página desde un origen web (no file://).
@@ -599,16 +663,21 @@ async function registrarEnSheets({ filename, blob }){
     filename,
     pdfBase64: base64
   };
-  const res = await fetch(USUARIOS_API_URL, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
-  });
-  if(!res.ok) throw new Error(`Error registrando (${res.status}).`);
-  const data = await res.json();
-  if(!data?.ok) throw new Error(data?.error || 'No se pudo registrar.');
-  currentRegistro = { fileId: data.fileId, url: data.url };
-  return currentRegistro;
+  try{
+    const res = await fetch(USUARIOS_API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok) throw new Error(`Error registrando (${res.status}).`);
+    const data = await res.json();
+    if(!data?.ok) throw new Error(data?.error || 'No se pudo registrar.');
+    currentRegistro = { fileId: data.fileId, url: data.url };
+    return currentRegistro;
+  }catch(_e){
+    // GitHub Pages suele bloquear esto por CORS → fallback a form POST.
+    return await postRegistroViaForm(payload);
+  }
 }
 
 async function finalizarYRegistrar(){
@@ -642,11 +711,29 @@ async function printAndArchive(){
   if(!currentRegistro?.fileId) return;
   try{
     if(location.protocol === 'file:') return;
-    await fetch(USUARIOS_API_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'setArchivado', fileId: currentRegistro.fileId })
-    });
+    const payload = { action:'setArchivado', fileId: currentRegistro.fileId };
+    try{
+      await fetch(USUARIOS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+    }catch(_e){
+      // fallback form POST (sin esperar resultado)
+      ensureRegistroIframe();
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = USUARIOS_API_URL;
+      form.target = 'reg-iframe';
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'payload';
+      inp.value = JSON.stringify(payload);
+      form.appendChild(inp);
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(()=>{ try{form.remove();}catch{} }, 2000);
+    }
   }catch(_e){
     // silencioso: imprimir no debe fallar
   }
@@ -683,6 +770,416 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => resizeSignatureCanvas(), {passive:true});
   els.dni.addEventListener('keydown', (e) => { if(e.key==='Enter') attemptLogin(); });
 });
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vale de Retiro de Materiales – AVP</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #1a56db; --blue-light: #e8f0fe; --blue-mid: #3b82f6;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+    --gray-400: #9ca3af; --gray-600: #6b7280; --gray-800: #1f2937; --gray-900: #111827;
+    --green: #059669; --green-light: #d1fae5;
+    --radius: 8px; --radius-lg: 12px;
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+  }
+  body { font-family: 'DM Sans', sans-serif; background: #eef2f7; color: var(--gray-900); min-height: 100vh; padding: 2rem 1rem; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .page { max-width: 860px; margin: 0 auto; background: #fff; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); overflow: hidden; }
+
+  /* HEADER */
+  .form-header { background: var(--blue); padding: 1.5rem 2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .form-header h1 { font-size: 18px; font-weight: 600; color: #fff; letter-spacing: -0.01em; }
+  .form-header p { font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+
+  /* BODY */
+  .form-body { padding: 1.75rem 2rem 2rem; }
+  .section-title {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--blue); margin: 1.5rem 0 0.75rem; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+  .section-title:first-child { margin-top: 0; }
+
+  .grid { display: grid; gap: 12px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .span2 { grid-column: span 2; }
+  .span3 { grid-column: span 3; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11.5px; font-weight: 500; color: var(--gray-600); }
+  .field input, .field select, .field textarea {
+    background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius);
+    padding: 8px 11px; font-size: 13.5px; color: var(--gray-900); font-family: 'DM Sans', sans-serif;
+    width: 100%; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--blue-mid); box-shadow: 0 0 0 3px rgba(59,130,246,0.12); background: #fff;
+  }
+  .field textarea { resize: none; }
+
+  /* Fecha con estilo destacado */
+  #fecha-display {
+    background: var(--gray-50); border: 2px solid var(--gray-900); border-radius: var(--radius);
+    padding: 8px 11px; font-size: 13.5px; color: var(--gray-900); font-family: 'DM Sans', sans-serif;
+    font-weight: 700; letter-spacing: 0.01em;
+  }
+
+  /* Entidad */
+  #entidad-otro { display: none; margin-top: 6px; }
+
+  /* TABLE */
+  .table-wrap { border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--gray-600); background: var(--gray-100); padding: 9px 10px; text-align: left;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  tbody tr:not(:last-child) td { border-bottom: 1px solid var(--gray-100); }
+  tbody td { padding: 5px 6px; vertical-align: middle; }
+  tbody td.num { font-size: 12px; color: var(--gray-400); text-align: center; width: 34px; }
+  tbody td input, tbody td select {
+    width: 100%; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px;
+    font-size: 13px; color: var(--gray-900); font-family: 'DM Sans', sans-serif; background: transparent;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  tbody td input:hover, tbody td select:hover { background: var(--gray-50); border-color: var(--gray-200); }
+  tbody td input:focus, tbody td select:focus {
+    outline: none; background: #fff; border-color: var(--blue-mid); box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+  }
+  .cant-col { width: 85px; }
+  .rubro-col { width: 195px; }
+
+  /* FIRMA */
+  .firma-note {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius);
+    padding: 10px 14px; font-size: 12.5px; color: #92400e; margin-bottom: 0.75rem;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .firma-note svg { flex-shrink: 0; margin-top: 1px; }
+  .canvas-wrap { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); overflow: hidden; position: relative; }
+  .canvas-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; color: var(--gray-400); pointer-events: none; transition: opacity 0.2s; }
+  canvas { display: block; cursor: crosshair; touch-action: none; }
+  .canvas-actions { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-top: 1px solid var(--gray-200); background: var(--gray-100); }
+  .signed-badge { display: none; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--green-light); color: var(--green); font-weight: 500; }
+  .btn-clear { font-size: 11.5px; color: var(--gray-600); background: none; border: 1px solid var(--gray-200); border-radius: 5px; padding: 3px 10px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 0.12s; }
+  .btn-clear:hover { background: #fff; }
+  .firma-aclaracion { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 7px 11px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--gray-900); background: var(--gray-50); width: 100%; transition: border-color 0.15s; margin-top: 6px; }
+  .firma-aclaracion:focus { outline: none; border-color: var(--blue-mid); background: #fff; }
+  .firma-label { font-size: 11.5px; font-weight: 500; color: var(--gray-600); margin-bottom: 6px; }
+
+  /* Espacios físicos */
+  .firma-fisica { margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .firma-fisica .slot .slot-label { font-size: 11.5px; font-weight: 500; color: var(--gray-600); margin-bottom: 6px; }
+  .firma-fisica .slot .slot-line { height: 70px; border-bottom: 1px solid var(--gray-400); }
+  .firma-fisica .slot .slot-hint { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+
+  /* FOOTER */
+  .form-footer { padding: 1.25rem 2rem 1.5rem; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 10px; }
+  .btn { font-family: 'DM Sans', sans-serif; font-size: 13.5px; font-weight: 500; border-radius: var(--radius); padding: 9px 22px; cursor: pointer; transition: all 0.15s; border: none; }
+  .btn-secondary { background: #fff; border: 1px solid var(--gray-200); color: var(--gray-800); }
+  .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-400); }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #1e40af; }
+  .btn-primary:disabled { background: var(--gray-400); cursor: not-allowed; }
+
+  /* MODAL */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: var(--radius-lg); box-shadow: 0 20px 60px rgba(0,0,0,0.2); padding: 1.5rem; width: 360px; animation: pop 0.18s ease; }
+  @keyframes pop { from { transform: scale(0.93); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal h3 { font-size: 16px; font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
+  .modal p { font-size: 13px; color: var(--gray-600); margin-bottom: 1.25rem; }
+  .modal-tip { font-size: 12px; color: var(--gray-600); background: var(--gray-100); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 1rem; line-height: 1.5; }
+  .contact-btn { display: flex; align-items: center; gap: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius); padding: 12px 14px; cursor: pointer; width: 100%; margin-bottom: 8px; transition: background 0.12s; font-family: 'DM Sans', sans-serif; text-align: left; }
+  .contact-btn:hover { background: #dcfce7; }
+  .contact-btn:last-of-type { margin-bottom: 0; }
+  .contact-icon { width: 38px; height: 38px; background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .contact-icon svg { width: 20px; height: 20px; fill: #fff; }
+  .contact-name { font-size: 14px; font-weight: 600; color: var(--gray-900); display: block; }
+  .contact-num { font-size: 12px; color: var(--gray-600); font-family: 'DM Mono', monospace; }
+  .modal-cancel { width: 100%; margin-top: 10px; background: none; border: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--gray-600); cursor: pointer; padding: 6px; border-radius: var(--radius); }
+  .modal-cancel:hover { background: var(--gray-100); }
+
+  /* PRINT */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { box-shadow: none; border-radius: 0; }
+    .form-footer, .canvas-actions .btn-clear { display: none; }
+    .modal-backdrop { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="form-header">
+    <div>
+      <h1>Vale de Retiro de Materiales</h1>
+      <p>Depósito / Pañol AVP</p>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="form-body">
+
+    <!-- Datos generales -->
+    <div class="section-title">Datos generales</div>
+    <div class="grid g3">
+      <div class="field span2">
+        <label>Entidad</label>
+        <select id="entidad" onchange="handleEntidad()"></select>
+        <input type="text" id="entidad-otro" placeholder="Indicar entidad...">
+      </div>
+      <div class="field">
+        <label>Sector</label>
+        <input type="text" id="sector" placeholder="Sector">
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:12px;">
+      <div class="field">
+        <label>Fecha y hora</label>
+        <div id="fecha-display">—</div>
+      </div>
+    </div>
+
+    <!-- Datos del solicitante -->
+    <div class="section-title">Datos del solicitante</div>
+    <div class="grid g2">
+      <div class="field">
+        <label>Nombre del técnico / operario</label>
+        <input type="text" id="nombre" placeholder="Nombre completo">
+      </div>
+      <div class="field">
+        <label>Área de trabajo</label>
+        <input type="text" id="area" placeholder="Área">
+      </div>
+      <div class="field span2">
+        <label>Solicitado por / Ticket / OTM</label>
+        <input type="text" id="ticket" placeholder="N° de ticket u OTM">
+      </div>
+    </div>
+
+    <!-- Materiales -->
+    <div class="section-title">Materiales solicitados</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:34px; text-align:center;">N°</th>
+            <th>Descripción del material</th>
+            <th class="rubro-col">Rubro</th>
+            <th class="cant-col">Cantidad</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="section-title">Observaciones</div>
+    <div class="field">
+      <textarea id="obs" rows="3" placeholder="Observaciones adicionales..."></textarea>
+    </div>
+
+    <!-- Firma solicitante -->
+    <div class="section-title">Firma del solicitante</div>
+    <div class="firma-note">
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 4a1 1 0 110 2 1 1 0 010-2zm0 4a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1z" fill="#92400e"/></svg>
+      Las firmas del Pañolero y del Supervisor se completarán de forma física una vez impreso el documento.
+    </div>
+    <div style="max-width:300px;">
+      <div class="firma-label">Firma del solicitante</div>
+      <div class="canvas-wrap">
+        <span class="canvas-hint" id="hint0">Firmá aquí</span>
+        <canvas id="c0" width="298" height="100"></canvas>
+        <div class="canvas-actions">
+          <span class="signed-badge" id="badge0">✓ Firmado</span>
+          <button class="btn-clear" onclick="clearSig()">Borrar</button>
+        </div>
+      </div>
+      <input class="firma-aclaracion" type="text" id="aclaracion" placeholder="Aclaración (nombre legible)">
+    </div>
+
+    <!-- Espacios físicos -->
+    <div class="firma-fisica">
+      <div class="slot">
+        <div class="slot-label">Pañolero / Responsable depósito</div>
+        <div class="slot-line"></div>
+        <div class="slot-hint">Firma y aclaración</div>
+      </div>
+      <div class="slot">
+        <div class="slot-label">Supervisor mantenimiento (si aplica)</div>
+        <div class="slot-line"></div>
+        <div class="slot-hint">Firma y aclaración</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="form-footer">
+    <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimir</button>
+    <button class="btn btn-primary" id="btn-enviar" onclick="openModal()">Enviar formulario →</button>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modal" onclick="handleBackdrop(event)">
+  <div class="modal">
+    <h3>Enviar por WhatsApp</h3>
+    <p>Generá el PDF y envialo al destinatario.</p>
+    <div class="modal-tip">
+      📄 Al hacer clic se descargará el PDF del vale.<br>
+      Luego, adjuntalo manualmente en el chat de WhatsApp correspondiente.<br>
+      <strong>WhatsApp no permite adjuntar archivos desde links externos.</strong>
+    </div>
+    <button class="contact-btn" onclick="sendTo('+5491157519199', 'Gastón')">
+      <div class="contact-icon"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div>
+      <div><span class="contact-name">Gastón</span><span class="contact-num">+54 9 11 5751-9199</span></div>
+    </button>
+    <button class="contact-btn" onclick="sendTo('+5491157664802', 'Mirco')">
+      <div class="contact-icon"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div>
+      <div><span class="contact-name">Mirco</span><span class="contact-num">+54 9 11 5766-4802</span></div>
+    </button>
+    <button class="modal-cancel" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- jsPDF + html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+// ─── FECHA Y HORA ─────────────────────────────────────────────────
+const now = new Date();
+const dd = String(now.getDate()).padStart(2,'0');
+const mm = String(now.getMonth()+1).padStart(2,'0');
+const yyyy = now.getFullYear();
+const hh = String(now.getHours()).padStart(2,'0');
+const min = String(now.getMinutes()).padStart(2,'0');
+const FECHA_STR = `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+document.getElementById('fecha-display').textContent = FECHA_STR;
+
+// ─── ENTIDAD (ordenada alfabéticamente, Otro al final) ─────────────
+const ENTIDADES = [
+  'Acacias','Acceso 25 Propietarios','Acceso 25 Proveedores','Acceso 26',
+  'Amarras','Araucarias','Ceibos','Costas','Edificio Plaza','Edificio RDL',
+  'Marinas','Muelles','Nativas','Riberas','Vistas'
+];
+(function buildEntidad() {
+  const sel = document.getElementById('entidad');
+  sel.innerHTML = '<option value="">— Seleccionar entidad —</option>'
+    + ENTIDADES.map(e => `<option>${e}</option>`).join('')
+    + '<option value="otro">Otro (indicar)</option>';
+})();
+
+function handleEntidad() {
+  const sel = document.getElementById('entidad');
+  document.getElementById('entidad-otro').style.display = sel.value === 'otro' ? 'block' : 'none';
+}
+
+// ─── RUBROS (ordenados, Otro al final) ────────────────────────────
+const RUBROS = ['Cerrajería','Eléctrico','Pintura','Plomería','Otro'];
+
+// ─── TABLA ────────────────────────────────────────────────────────
+(function buildTable() {
+  const tbody = document.getElementById('tbody');
+  for (let i = 1; i <= 5; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${i}</td>
+      <td><input type="text" placeholder="Descripción del material"></td>
+      <td><select><option value="">— Rubro —</option>${RUBROS.map(r=>`<option>${r}</option>`).join('')}</select></td>
+      <td class="cant-col"><input type="number" min="0" placeholder="0" style="text-align:center;"></td>`;
+    tbody.appendChild(tr);
+  }
+})();
+
+// ─── FIRMA ────────────────────────────────────────────────────────
+const canvas = document.getElementById('c0');
+const ctx = canvas.getContext('2d');
+ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+let drawing = false, last = {}, hasSig = false;
+
+function getPos(e) {
+  const r = canvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - r.left) * (canvas.width / r.width),
+           y: (src.clientY - r.top)  * (canvas.height / r.height) };
+}
+canvas.addEventListener('mousedown',  e => { drawing = true; last = getPos(e); });
+canvas.addEventListener('mousemove',  e => { if (!drawing) return; const p = getPos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last = p; markSigned(); });
+canvas.addEventListener('mouseup',    () => drawing = false);
+canvas.addEventListener('mouseleave', () => drawing = false);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; last = getPos(e); }, {passive:false});
+canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(p.x,p.y); ctx.stroke(); last = p; markSigned(); }, {passive:false});
+canvas.addEventListener('touchend',   e => { e.preventDefault(); drawing = false; }, {passive:false});
+
+function markSigned() {
+  if (!hasSig) { hasSig = true; document.getElementById('hint0').style.opacity='0'; document.getElementById('badge0').style.display='inline-block'; }
+}
+function clearSig() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  hasSig = false; document.getElementById('hint0').style.opacity='1'; document.getElementById('badge0').style.display='none';
+}
+
+// ─── GENERAR PDF ──────────────────────────────────────────────────
+async function generatePDF() {
+  const { jsPDF } = window.jspdf;
+  const el = document.querySelector('.page');
+  // Ocultar footer para captura
+  const footer = document.querySelector('.form-footer');
+  footer.style.display = 'none';
+  const cv = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#fff' });
+  footer.style.display = '';
+  const imgData = cv.toDataURL('image/jpeg', 0.92);
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const ratio = cv.height / cv.width;
+  const imgW = pageW - 20;
+  const imgH = imgW * ratio;
+  let yPos = 10;
+  let remaining = imgH;
+  // Paginar si la imagen es más alta que una página
+  while (remaining > 0) {
+    pdf.addImage(imgData, 'JPEG', 10, yPos, imgW, imgH);
+    remaining -= (pageH - 20);
+    if (remaining > 0) { pdf.addPage(); yPos = 10 - (imgH - remaining); }
+  }
+  const filename = `Vale-AVP-${dd}${mm}${yyyy}-${hh}${min}.pdf`;
+  pdf.save(filename);
+  return filename;
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────
+function openModal() { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function handleBackdrop(e) { if (e.target === document.getElementById('modal')) closeModal(); }
+
+async function sendTo(phone, nombre) {
+  closeModal();
+  const btn = document.getElementById('btn-enviar');
+  btn.disabled = true; btn.textContent = 'Generando PDF…';
+  try {
+    await generatePDF();
+    // Abrir WhatsApp con mensaje de aviso
+    const msg = encodeURIComponent(`📋 *Vale de Retiro de Materiales – AVP*\nFecha: ${FECHA_STR}\nTécnico: ${document.getElementById('nombre').value || '—'}\n\nAdjunto el PDF del vale.`);
+    setTimeout(() => window.open(`https://wa.me/${phone}?text=${msg}`, '_blank'), 600);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enviar formulario →';
+  }
+}
 </script>
 </body>
 </html>
